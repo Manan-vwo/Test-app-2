@@ -8,7 +8,16 @@
         (function () {
           var w = window,
             d = document;
-          var account_id = 1163296,
+
+          // Function to extract account_id from URL parameter
+          function getAccountIdFromUrl() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var accountIdParam = urlParams.get("id");
+            return accountIdParam ? parseInt(accountIdParam, 10) : null;
+          }
+
+          // Get account_id from URL or use default
+          var account_id = getAccountIdFromUrl() || 1120758,
             version = 2.2,
             settings_tolerance = 2000,
             hide_element = "body",
