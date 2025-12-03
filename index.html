@@ -449,8 +449,6 @@
               VWO.event("newSessionCreated");
             }
           }
-        } else if (!cookieStr && CFG.cookie.expirySeconds === null) {
-          VWO.event("newSessionCreated");
         }
 
         var urls = getCrossTopDomainPingUrls(
