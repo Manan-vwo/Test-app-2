@@ -307,12 +307,12 @@
         // - tab close
         // - browser close (most cases)
         // - navigation away
-        window.addEventListener("pagehide", function (e) {
-          if (!e.persisted) {
-            // If not using bfcache, treat as real unload
-            deleteCookie("vwo_activity");
-          }
-        });
+        // window.addEventListener("pagehide", function (e) {
+        //   if (!e.persisted) {
+        //     // If not using bfcache, treat as real unload
+        //     deleteCookie("vwo_activity");
+        //   }
+        // });
 
         // 2. visibilitychange:
         // triggers when:
