@@ -294,6 +294,47 @@
       rel="stylesheet"
     />
 
+    <script>
+      (function () {
+        function deleteCookie(name) {
+          document.cookie =
+            name + "=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+        }
+
+        // ---- TAB CLOSE HANDLER (best effort) ----
+
+        // 1. pagehide fires on:
+        // - tab close
+        // - browser close (most cases)
+        // - navigation away
+        window.addEventListener("pagehide", function (e) {
+          if (!e.persisted) {
+            // If not using bfcache, treat as real unload
+            deleteCookie("vwo_activity");
+          }
+        });
+
+        // 2. beforeunload fires on:
+        // - page reload
+        // - tab close (some cases)
+        // - navigation
+        window.addEventListener("beforeunload", function () {
+          deleteCookie("vwo_activity");
+        });
+
+        // 3. visibilitychange:
+        // triggers when:
+        // - tab becomes hidden
+        // - browser window minimized
+        // - tab closed (fires before)
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "hidden") {
+            deleteCookie("vwo_activity");
+          }
+        });
+      })();
+    </script>
+
     <!-- vwo_activity cookie -->
     <script>
       (function () {
