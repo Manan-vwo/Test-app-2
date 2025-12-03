@@ -308,7 +308,7 @@
           cookie: {
             name: "vwo_activity",
             value: "abc123",
-            expirySeconds: null, // null = session cookie (expires when browser closes)
+            expirySeconds: 1800, // 30 minutes
             opts: { path: "/", sameSite: "None", secure: true },
           },
           thirdParty: {
@@ -317,7 +317,6 @@
             ],
             opts: { paramName: "v" },
           },
-          // Domains that restrict cookie domain attributes
           restrictedDomains: [
             ".github.io",
             ".vercel.app",
@@ -328,25 +327,65 @@
           ],
         };
 
+        var INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 minutes
+
         function getCookie(n, cookieStr) {
           var m = cookieStr.match(new RegExp("(^|; )" + n + "=([^;]*)"));
           return m ? decodeURIComponent(m[2]) : null;
         }
+
+        function deleteCookie(name) {
+          document.cookie =
+            name +
+            "=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=None; Secure";
+        }
+
+        /* ---------------------------
+     1. Inactivity + Browser-Close Session Reset
+  ----------------------------*/
+
+        var lastSeen = Number(localStorage.getItem("vwo_last_seen") || 0);
+        var now = Date.now();
+        var existingCookie = getCookie(CFG.cookie.name, document.cookie);
+
+        // If no lastSeen OR stale (inactive for > 30 min), clear cookie
+        var isInactiveTooLong = !lastSeen || now - lastSeen > INACTIVITY_LIMIT;
+
+        if (isInactiveTooLong) {
+          deleteCookie(CFG.cookie.name);
+          existingCookie = null;
+        }
+
+        // Update activity timestamp
+        function updateLastSeen() {
+          try {
+            localStorage.setItem("vwo_last_seen", Date.now());
+          } catch (e) {}
+        }
+
+        updateLastSeen();
+        setInterval(updateLastSeen, 5000); // refresh activity every 5 sec
+
+        // Best-effort browser or tab close activity update
+        window.addEventListener("pagehide", updateLastSeen);
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "hidden") updateLastSeen();
+        });
+
+        /* ---------------------------
+     2. Your existing cookie creation logic
+  ----------------------------*/
 
         // PURE
         function createOrUpdateTldCookie(cfg, cookieStr, hostname) {
           if (getCookie(cfg.name, cookieStr)) return null;
 
           var o = cfg.opts || {};
-
-          // Calculate domain more safely
           var parts = hostname.split(".");
           var dom = parts.length >= 2 ? parts.slice(-2).join(".") : hostname;
 
-          // Build cookie string
           var cookieParts = [cfg.name + "=" + encodeURIComponent(cfg.value)];
 
-          // Add expiry if specified, otherwise it's a session cookie (expires when browser closes)
           if (cfg.expirySeconds) {
             var expMs = cfg.expirySeconds * 1000;
             var exp = new Date(Date.now() + expMs).toUTCString();
@@ -355,36 +394,28 @@
 
           cookieParts.push("path=" + (o.path || "/"));
 
-          // Domain handling: be more permissive for restricted hosting platforms
           if (dom !== "localhost" && !/^\d+\.\d+\.\d+\.\d+$/.test(dom)) {
-            // Check if hostname matches any restricted domain patterns
             var isRestricted = CFG.restrictedDomains.some(function (
               restricted
             ) {
               return hostname.includes(restricted);
             });
 
-            // For restricted platforms, don't set domain to avoid restrictions
             if (!isRestricted && parts.length >= 2) {
               cookieParts.push("domain=." + dom);
             }
           }
 
-          // Only add SameSite=None + Secure if on HTTPS
           if (location.protocol === "https:") {
             cookieParts.push("SameSite=" + (o.sameSite || "None"));
-            if (o.secure !== false) {
-              cookieParts.push("Secure");
-            }
+            if (o.secure !== false) cookieParts.push("Secure");
           } else if (o.sameSite && o.sameSite !== "None") {
-            // On HTTP, use Lax if specified
             cookieParts.push("SameSite=" + o.sameSite);
           }
 
           return cookieParts.join("; ");
         }
 
-        // PURE
         function getCrossTopDomainPingUrls(
           cookieCfg,
           thirdPartyCfg,
@@ -402,18 +433,12 @@
           return out;
         }
 
-        // Robust cookie setting with verification and fallback
         function setCookie(cookieStr) {
           try {
             document.cookie = cookieStr;
-
-            // Verify the cookie was set by checking if we can read it back
             var verification = getCookie(CFG.cookie.name, document.cookie);
-            if (verification === CFG.cookie.value) {
-              return true;
-            }
+            if (verification === CFG.cookie.value) return true;
 
-            // If the cookie failed to set, try a fallback without domain
             var fallbackCookieStr = cookieStr.replace(/; domain=[^;]+/, "");
             document.cookie = fallbackCookieStr;
             var fallbackVerification = getCookie(
@@ -427,14 +452,10 @@
           }
         }
 
-        // ---- Execution (impure) ----
+        /* ---------------------------
+     3. Write cookie only if needed
+  ----------------------------*/
 
-        // Check if cookies are enabled
-        if (!navigator.cookieEnabled) {
-          return;
-        }
-
-        var existingCookie = getCookie(CFG.cookie.name, document.cookie);
         var cookieStr = createOrUpdateTldCookie(
           CFG.cookie,
           document.cookie,
@@ -443,11 +464,10 @@
 
         if (cookieStr) {
           var cookieSet = setCookie(cookieStr);
-          if (cookieSet) {
-            // Only fire event if this is truly a new session (no existing cookie)
-            if (!existingCookie) {
-              VWO.event("newSessionCreated");
-            }
+
+          // Fire event if this truly starts a new session
+          if (cookieSet && !existingCookie) {
+            VWO.event("newSessionCreated");
           }
         }
 
