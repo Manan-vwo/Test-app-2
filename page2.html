@@ -492,6 +492,168 @@
         }
       }
     </style>
+    <!-- vwo_activity cookie -->
+    <script>
+      (function () {
+        window.VWO = window.VWO || [];
+        VWO.event =
+          VWO.event ||
+          function () {
+            VWO.push(["event"].concat([].slice.call(arguments)));
+          };
+
+        var CFG = {
+          cookie: {
+            name: "vwo_activity",
+            value: "abc123",
+            expirySeconds: 1800, // 30 minutes; can be lowered for debugging
+            opts: { path: "/", sameSite: "None", secure: true },
+          },
+          thirdParty: {
+            crossTopDomains: [
+              // "https://dummy-cross-domain.com/set-cross-domain-cookie"
+            ],
+            opts: { paramName: "v" },
+          },
+          // Domains that restrict cookie domain attributes
+          restrictedDomains: [
+            ".github.io",
+            ".vercel.app",
+            ".netlify.app",
+            ".surge.sh",
+            ".now.sh",
+            ".pages.dev",
+          ],
+        };
+
+        function getCookie(n, cookieStr) {
+          var m = cookieStr.match(new RegExp("(^|; )" + n + "=([^;]*)"));
+          return m ? decodeURIComponent(m[2]) : null;
+        }
+
+        // PURE
+        function createOrUpdateTldCookie(cfg, cookieStr, hostname) {
+          if (getCookie(cfg.name, cookieStr)) return null;
+
+          var o = cfg.opts || {};
+          var expMs = (cfg.expirySeconds || 1800) * 1000;
+          var exp = new Date(Date.now() + expMs).toUTCString();
+
+          // Calculate domain more safely
+          var parts = hostname.split(".");
+          var dom = parts.length >= 2 ? parts.slice(-2).join(".") : hostname;
+
+          // Build cookie string
+          var cookieParts = [
+            cfg.name + "=" + encodeURIComponent(cfg.value),
+            "expires=" + exp,
+            "path=" + (o.path || "/"),
+          ];
+
+          // Domain handling: be more permissive for restricted hosting platforms
+          if (dom !== "localhost" && !/^\d+\.\d+\.\d+\.\d+$/.test(dom)) {
+            // Check if hostname matches any restricted domain patterns
+            var isRestricted = CFG.restrictedDomains.some(function (
+              restricted
+            ) {
+              return hostname.includes(restricted);
+            });
+
+            // For restricted platforms, don't set domain to avoid restrictions
+            if (!isRestricted && parts.length >= 2) {
+              cookieParts.push("domain=." + dom);
+            }
+          }
+
+          // Only add SameSite=None + Secure if on HTTPS
+          if (location.protocol === "https:") {
+            cookieParts.push("SameSite=" + (o.sameSite || "None"));
+            if (o.secure !== false) {
+              cookieParts.push("Secure");
+            }
+          } else if (o.sameSite && o.sameSite !== "None") {
+            // On HTTP, use Lax if specified
+            cookieParts.push("SameSite=" + o.sameSite);
+          }
+
+          return cookieParts.join("; ");
+        }
+
+        // PURE
+        function getCrossTopDomainPingUrls(
+          cookieCfg,
+          thirdPartyCfg,
+          shouldCreate
+        ) {
+          if (!shouldCreate) return [];
+          var urls = thirdPartyCfg.crossTopDomains || [];
+          var p = (thirdPartyCfg.opts && thirdPartyCfg.opts.paramName) || "v";
+          var val = encodeURIComponent(cookieCfg.value);
+
+          var out = [];
+          for (var i = 0; i < urls.length; i++) {
+            out.push(urls[i] + "?" + p + "=" + val + "&ts=" + Date.now());
+          }
+          return out;
+        }
+
+        // Robust cookie setting with verification and fallback
+        function setCookie(cookieStr) {
+          try {
+            document.cookie = cookieStr;
+
+            // Verify the cookie was set by checking if we can read it back
+            var verification = getCookie(CFG.cookie.name, document.cookie);
+            if (verification === CFG.cookie.value) {
+              return true;
+            }
+
+            // If the cookie failed to set, try a fallback without domain
+            var fallbackCookieStr = cookieStr.replace(/; domain=[^;]+/, "");
+            document.cookie = fallbackCookieStr;
+            var fallbackVerification = getCookie(
+              CFG.cookie.name,
+              document.cookie
+            );
+
+            return fallbackVerification === CFG.cookie.value;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        // ---- Execution (impure) ----
+
+        // Check if cookies are enabled
+        if (!navigator.cookieEnabled) {
+          return;
+        }
+
+        var existingCookie = getCookie(CFG.cookie.name, document.cookie);
+        var cookieStr = createOrUpdateTldCookie(
+          CFG.cookie,
+          document.cookie,
+          location.hostname
+        );
+
+        if (cookieStr) {
+          var cookieSet = setCookie(cookieStr);
+          if (cookieSet) {
+            // Only fire event if this is truly a new session (no existing cookie)
+            if (!existingCookie) {
+              VWO.event("newSessionCreated");
+            }
+          }
+        }
+
+        var urls = getCrossTopDomainPingUrls(
+          CFG.cookie,
+          CFG.thirdParty,
+          cookieStr && cookieSet
+        );
+        for (var i = 0; i < urls.length; i++) new Image().src = urls[i];
+      })();
+    </script>
   </head>
   <body>
     <div class="container">
