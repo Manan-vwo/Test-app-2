@@ -314,15 +314,7 @@
           }
         });
 
-        // 2. beforeunload fires on:
-        // - page reload
-        // - tab close (some cases)
-        // - navigation
-        window.addEventListener("beforeunload", function () {
-          deleteCookie("vwo_activity");
-        });
-
-        // 3. visibilitychange:
+        // 2. visibilitychange:
         // triggers when:
         // - tab becomes hidden
         // - browser window minimized
