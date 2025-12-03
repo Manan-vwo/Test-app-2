@@ -308,7 +308,7 @@
           cookie: {
             name: "vwo_activity",
             value: "abc123",
-            expirySeconds: 1800, // 30 minutes; can be lowered for debugging
+            expirySeconds: null, // null = session cookie (expires when browser closes)
             opts: { path: "/", sameSite: "None", secure: true },
           },
           thirdParty: {
@@ -338,19 +338,22 @@
           if (getCookie(cfg.name, cookieStr)) return null;
 
           var o = cfg.opts || {};
-          var expMs = (cfg.expirySeconds || 1800) * 1000;
-          var exp = new Date(Date.now() + expMs).toUTCString();
 
           // Calculate domain more safely
           var parts = hostname.split(".");
           var dom = parts.length >= 2 ? parts.slice(-2).join(".") : hostname;
 
           // Build cookie string
-          var cookieParts = [
-            cfg.name + "=" + encodeURIComponent(cfg.value),
-            "expires=" + exp,
-            "path=" + (o.path || "/"),
-          ];
+          var cookieParts = [cfg.name + "=" + encodeURIComponent(cfg.value)];
+
+          // Add expiry if specified, otherwise it's a session cookie (expires when browser closes)
+          if (cfg.expirySeconds) {
+            var expMs = cfg.expirySeconds * 1000;
+            var exp = new Date(Date.now() + expMs).toUTCString();
+            cookieParts.push("expires=" + exp);
+          }
+
+          cookieParts.push("path=" + (o.path || "/"));
 
           // Domain handling: be more permissive for restricted hosting platforms
           if (dom !== "localhost" && !/^\d+\.\d+\.\d+\.\d+$/.test(dom)) {
