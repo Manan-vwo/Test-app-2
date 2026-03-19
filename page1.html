@@ -650,7 +650,7 @@
           <button class="btn" onclick="trackAction('download')">
             Download App
           </button>
-          <button class="btn" onclick="trackAction('trial')">
+          <button class="btn" onclick= "handleClick1()">
             Start Free Trial
           </button>
           <button class="btn btn-secondary" onclick="trackAction('info')">
@@ -698,6 +698,14 @@
     </div>
 
     <script>
+      function handleClick1() {
+  trackConversion('primary_cta_click');
+
+  const info = window.VWO.getCrossDomainInfo();
+  const url = `https://test-app-2-liard.vercel.app/?${info.q}=${info.d}`;
+
+  window.location.href = url;
+}
       let clickCount = 0;
 
       // Form submission handlers
